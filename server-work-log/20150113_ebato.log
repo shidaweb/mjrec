@@ -1,0 +1,67 @@
+# register nginx to service
+chkconfig --add nginx
+service nginx start
+
+# php5.6 
+rpm -Uvh http://ftp.iij.ad.jp/pub/linux/fedora/epel/6/x86_64/epel-release-6-8.noarch.rpm
+rpm -Uvh http://rpms.famillecollet.com/enterprise/remi-release-6.rpm
+yum install -y --enablerepo=remi --enablerepo=remi-php56 php php-opcache php-devel php-mbstring php-mcrypt php-mysqlnd php-phpunit-PHPUnit php-pecl-xdebug php-pecl-xhprof php-tokenizer php-fpm
+
+# php-fpm(TCP/IP　でなく Unix Socket通信で高速化)
+vi /etc/php-fpm.d/www.conf
+- => delete
++ => add
+- listen = 127.0.0.1
++ listen = /var/run/php-fpm/php-fpm.sock
+- user = apache
++ user = nginx
+- group = apache
++ group = nginx
+- listen.owner = nobody
++ listen.owner = nginx
+- listen.group = nobody
++ listen.group = nginx
+
+# register php-fpm to service
+chkconfig --add php-fpm
+service php-fpm start
+
+#Composer & Laravel5.2.7
+curl -sS https://getcomposer.org/installer | php
+mv composer.phar /usr/local/bin/composer
+composer global require "laravel/installer=~1.1"
+echo 'export PATH=~/.composer/vendor/laravel/installer:$PATH' >> ~/.bash_profile
+source ~/.bash_profile
+cd /var/www/
+laravel new mjrec
+chown -R nginx:nginx mjrec/
+chmod -R 775 mjrec/
+chmod -R 777 mjrec/storage/
+
+# Nginx setting
+vi /etc/nginx/conf.d/default.conf
+
+  root /var/www/mjrec/public;
+  index index.php index.html index.htm;
+
+  location / {
+    try_files $uri $uri/ /index.php?$query_string;
+  }
+
+  location ~ \.php$ {
+    try_files $uri /index.php =404;
+    fastcgi_split_path_info ^(.+\.php)(/.+)$;
+  
+    fastcgi_pass unix:/var/run/php-fpm/php-fpm.sock;
+    fastcgi_index  index.php;
+    fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+  
+    fastcgi_max_temp_file_size 0;
+    fastcgi_buffer_size 4K;
+    fastcgi_buffers 64 4k;
+  
+    include        fastcgi_params;
+  }
+
+# Nginx setting reload
+nginx -s reload
