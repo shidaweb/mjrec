@@ -1,1 +1,1 @@
-## mjrec by Laravel PHP Framework
+# mjrec_app
